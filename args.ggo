@@ -1,18 +1,11 @@
-package "Example of .ggo file"
+package "nanoShell"
 version "1.0"
 purpose "Simple example (optional)"
 description "description needed (optional)"
-versiontext "versiontext needed (optional)"
+versiontext "Made by: \n  Francisco Melicias - 2191727 \n  Diogo Francisco - 219----"
 
-#----------------------------
-# independent options
-#----------------------------
-# Mandatory option
-#option "folder" f "folder" string typestr="dirname" required
+option  "file"          f   "Executes all the line in the file except the ones that start with '#'." typestr="Directory"    string  optional
 
-# Optional
-#option "num" n "number" int optional
+option  "max"           m   "Max number of commands that can run before the program ends."                                  int     optional
 
-#
-# NOTE: support for this file needs to be enabled in 'makefile'
-#
+option  "signalfile"    s   "Creates a file called 'signal.txt' that will contain all the signal we can use with the PID."          optional
