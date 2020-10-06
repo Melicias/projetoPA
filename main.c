@@ -19,6 +19,8 @@
 #include "args.h"
 
 
+void executeLinesFromFile(char *sFile);
+
 int main(int argc, char *argv[]){
 	
 	struct gengetopt_args_info args;
@@ -28,13 +30,46 @@ int main(int argc, char *argv[]){
 		ERROR(1, "[Error]: cmdline_parser execution.\n");
 
 	// all the option only must be used alone, so 1 is always from the name of file
-	if(argc > 2)
+	if(argc > 3)
 		ERROR(2, "[Error]: All the option must to be used on their own.\n");
 
+	if(args.file_given){
+		executeLinesFromFile(args.file_arg);
+		return 0;
+	}
+			
 	// gengetopt: release resources
 	//cmdline_parser_free(&args);
 
 
 	return 0;
+}
+
+/*
+	Opens the file
+
+	return FILE
+*/
+void executeLinesFromFile(char *sFile){
+	FILE *file = fopen(sFile, "r");
+    if (file == NULL)
+        ERROR(3, "[Error]: file not found.\n");
+		//CONFIRMAR SE ISTO ACABA MSM COM O PROGRAMA
+	
+	/*char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        printf("%s", line);
+		printf("%ld", sizeof(line)); 
+    }
+	*/
+	char * line = NULL;
+    size_t len = 0;
+    ssize_t read;
+	while ((read = getline(&line, &len, file)) != -1) {
+		if(read != 1 && line[0] != '#'){
+			printf("Retrieved line of length %zu:\n", read);
+			printf("%s", line);
+		}
+    }
 }
 
