@@ -13,14 +13,17 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdbool.h>
+#include <signal.h>
 
 #include "debug.h"
 #include "memory.h"
 #include "args.h"
 
+struct sigaction act_info;
 
 void executeLinesFromFile(char *sFile);
 void makeSignalFile();
+void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context);
 
 int main(int argc, char *argv[]){
 	
@@ -42,7 +45,24 @@ int main(int argc, char *argv[]){
 	if(args.signalfile_given){
 		makeSignalFile();
 	}
+		
+	
+	act_info.sa_sigaction = takeCareOfSignalInfo;
+	sigemptyset(&act_info.sa_mask);
+	act_info.sa_flags = 0;           	//fidedigno
+	act_info.sa_flags |= SA_SIGINFO; 	//info adicional sobre o sinal
+	//act_info.sa_flags |= SA_RESTART; 	//recupera chamadas bloqueantes
+
+	if(sigaction(SIGINT, &act_info, NULL) < 0)
+		ERROR(4, "sigaction (SIGINT) - ???");
+	if(sigaction(SIGUSR1, &act_info, NULL) < 0)
+		ERROR(5, "sigaction (SIGUSR1) - ???");
+	if(sigaction(SIGIUSR2, &act_info, NULL) < 0)
+		ERROR(6, "sigaction (SIGIUSR2) - ???");
 			
+
+
+	
 	// gengetopt: release resources
 	//cmdline_parser_free(&args);
 
@@ -56,6 +76,7 @@ int main(int argc, char *argv[]){
 	return FILE
 */
 void executeLinesFromFile(char *sFile){
+	//FALTA MUDAR A MSG DE ERRO E MOSTRAR O ERRO DE SISTEMA
 	FILE *file = fopen(sFile, "r");
     if (file == NULL)
         ERROR(3, "[Error]: file not found.\n");
@@ -79,9 +100,24 @@ void executeLinesFromFile(char *sFile){
 }
 
 void makeSignalFile(){
-	FILE *outputFile = outputFile = fopen("signal.txt", "wab+");
-	printf("Writting the output into the file: %s\n", "signal.txt");
+	FILE *outputFile = fopen("signal.txt", "wab+");
 	fprintf(outputFile, "kill -SIGINT %d\nkill -SIGUSR1 %d\nkill -SIGIUSR2 %d",getpid(),getpid(),getpid());
 	fclose(outputFile);
+	printf("[INFO] created file  '%s'\n", "signal.txt");
+}
+
+void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context) {
+	(void)context;
+	/* Cópia da variável global errno */
+	aux = errno;
+
+
+	printf("Recebi o sinal (%d)\n", signal);
+	printf("Detalhes:\n");
+	printf("\tPID: %ld\n\tUID: %ld\n", (long)siginfo->si_pid, (long)siginfo->si_uid);
+
+
+	/* Restaura valor da variável global errno */
+	errno = aux;
 }
 
