@@ -2,7 +2,7 @@
 * @file main.c
 * @brief Description
 * @date 2020-10-6
-* @author Francisco Melicias - 2191727 & Diogo Francisco - 219----
+* @author Francisco Melicias - 2191727 & Diogo Francisco - 2191253
 */
 
 #include <stdio.h>
