@@ -20,6 +20,7 @@
 
 
 void executeLinesFromFile(char *sFile);
+void makeSignalFile();
 
 int main(int argc, char *argv[]){
 	
@@ -36,6 +37,10 @@ int main(int argc, char *argv[]){
 	if(args.file_given){
 		executeLinesFromFile(args.file_arg);
 		return 0;
+	}
+
+	if(args.signalfile_given){
+		makeSignalFile();
 	}
 			
 	// gengetopt: release resources
@@ -71,5 +76,12 @@ void executeLinesFromFile(char *sFile){
 			printf("%s", line);
 		}
     }
+}
+
+void makeSignalFile(){
+	FILE *outputFile = outputFile = fopen("signal.txt", "wab+");
+	printf("Writting the output into the file: %s\n", "signal.txt");
+	fprintf(outputFile, "kill -SIGINT %d\nkill -SIGUSR1 %d\nkill -SIGIUSR2 %d",getpid(),getpid(),getpid());
+	fclose(outputFile);
 }
 

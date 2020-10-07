@@ -1,0 +1,3 @@
+kill -SIGINT 5475
+kill -SIGUSR1 5475
+kill -SIGIUSR2 5475
