@@ -93,12 +93,14 @@ void warning(const char *file, const int line, char *fmt, ...)
 void error(const char *file, const int line, int exitCode, char *fmt, ...)
 {
     va_list ap;
-
+    //as duas linhas abaixo foram dicionadas para retirar os warnings depois de ter comentado as outras duas linhas abaixo
+    (void)file;
+    (void)line;
     va_start(ap, fmt);
-    fprintf(stderr, "[%s@%d] ERROR - ", file, line);
+    //fprintf(stderr, "[%s@%d] ERROR - ", file, line);
     vfprintf(stderr, fmt, ap);
     va_end(ap);
-    fprintf(stderr, ": %s\n", strerror(errno));
+    //fprintf(stderr, ": %s\n", strerror(errno));
     fflush(stderr);
     exit(exitCode);
 }
