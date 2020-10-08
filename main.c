@@ -24,16 +24,26 @@ struct sigaction act_info;
 struct tm tm;
 
 time_t t;
+int app_ex;
+int stdout_ex;
+int stderr_ex;
+bool keepGoing;
 
-
+char *inputString(FILE* fp, size_t size);
 void executeLinesFromFile(char *sFile);
 void makeSignalFile();
 void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context);
+bool isCommandValid(char* command);
+
 
 int main(int argc, char *argv[]){
 	
 	t = time(NULL);
 	tm = *localtime(&t);
+	app_ex = 0;
+	stdout_ex = 0;
+	stderr_ex = 0;
+	keepGoing = true;
 
 	struct gengetopt_args_info args;
 
@@ -64,11 +74,30 @@ int main(int argc, char *argv[]){
 	if(sigaction(SIGINT, &act_info, NULL) < 0)
 		ERROR(4, "sigaction (SIGINT)");
 	if(sigaction(SIGUSR1, &act_info, NULL) < 0)
-		ERROR(5, "sigaction (SIGUSR1) testeeeeeeee");
+		ERROR(5, "sigaction (SIGUSR1)");
 	if(sigaction(SIGUSR2, &act_info, NULL) < 0)
 		ERROR(6, "sigaction (SIGUSR2)");
 			
-	sleep(100);
+	
+
+	do{
+		char *input;
+		printf ("nanoshell$: ");
+		input = inputString(stdin, 256);
+		if(isCommandValid(input)){
+			if(strstr(input, "bye") == NULL) {
+				printf("%s\n\n", input);
+			}else{
+				keepGoing = false;
+			}
+		}else{
+			printf("Nao foi possivel executar o comando\n");
+		}
+
+		free(input);
+		
+	}while(keepGoing);
+	
 
 	
 	// gengetopt: release resources
@@ -111,23 +140,24 @@ void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context) {
 	/* Cópia da variável global errno */
 	int aux = errno;
 	
+	keepGoing = false;
 	switch(signal){
 		case 2: //SIGINT 
-			printf("[INFO]\tPID who send the signal: %ld \n\tUID who send the signal: %ld\n", (long)siginfo->si_pid, (long)siginfo->si_uid);
+			printf("\n[INFO]\tPID who send the signal: %ld \n\tUID who send the signal: %ld\n", (long)siginfo->si_pid, (long)siginfo->si_uid);
 			break;
 		case 10: //SIGUSR1 
-			printf("[INFO] nanoShell started at: %d-%02d-%02dT%02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+			printf("\n[INFO] nanoShell started at: %d-%02d-%02dT%02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 			break;
 		case 12: ;//SIGUSR2
 			char fileName[50];
 			sprintf(fileName,"nano_shell_status_%d.%02d.%02d_%02dh%02d.%02d.txt", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 			FILE *outputFile = fopen(fileName, "wab+");
-			fprintf(outputFile, "this is a test"); //adicionar aqui as cenas do output do file
+			fprintf(outputFile, "%d executions of applications\n%d executions with STDOUT redir \n%d execution with STDERR redir",app_ex,stdout_ex,stderr_ex);
 			fclose(outputFile);
-			printf("[INFO] created file  '%s'\n", fileName);
+			printf("\n[INFO] created file  '%s'\n", fileName);
 			break;
 		default:
-			printf("teste");
+			printf("\n[INFO] it wasn't redirected to any of the 3 signals");
 
 	}
 
@@ -135,11 +165,35 @@ void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context) {
 	errno = aux;
 }
 
-/*
-bool checkcheckIfCommandIsValid(char* command){
+//https://stackoverflow.com/questions/16870485/how-can-i-read-an-input-string-of-unknown-length
+char *inputString(FILE* fp, size_t size){
+//The size is extended by the input with the value of the provisional
+    char *str;
+    int ch;
+    size_t len = 0;
+    str = realloc(NULL, sizeof(char)*size);//size is start size
+    if(!str)return str;
+    while(EOF!=(ch=fgetc(fp)) && ch != '\n'){
+        str[len++]=ch;
+        if(len==size){
+            str = realloc(str, sizeof(char)*(size+=16));
+            if(!str)return str;
+        }
+    }
+    str[len++]='\0';
 
+    return realloc(str, sizeof(char)*len);
 }
 
+
+bool isCommandValid(char* command){
+	for(int i = 0; i<(int)strlen(command); ++i)
+		if (command[i] == '\'' || command[i] == '"' || command[i] == '|' || command[i] == '*' || command[i] == '?')
+			return false;
+	return true;
+}
+
+/*
 void runShellCommand(char* command){
 	if(!checkIfCommandIsValid(command)){
 		//ERRO DAR HANDLE NISSO
