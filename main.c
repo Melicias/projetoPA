@@ -27,7 +27,7 @@ time_t t;
 int app_ex;
 int stdout_ex;
 int stderr_ex;
-bool keepGoing;
+bool keepGoingWithCommands;
 
 char *inputString(FILE* fp, size_t size);
 void executeLinesFromFile(char *sFile);
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]){
 	app_ex = 0;
 	stdout_ex = 0;
 	stderr_ex = 0;
-	keepGoing = true;
+	keepGoingWithCommands = true;
 
 	struct gengetopt_args_info args;
 
@@ -64,7 +64,6 @@ int main(int argc, char *argv[]){
 		makeSignalFile();
 	}
 		
-	
 	act_info.sa_sigaction = takeCareOfSignalInfo;
 	sigemptyset(&act_info.sa_mask);
 	act_info.sa_flags = 0;           	//fidedigno
@@ -88,28 +87,26 @@ int main(int argc, char *argv[]){
 			if(strstr(input, "bye") == NULL) {
 				printf("%s\n\n", input);
 			}else{
-				keepGoing = false;
+				keepGoingWithCommands = false;
 			}
 		}else{
-			printf("Nao foi possivel executar o comando\n");
+			printf("[ERROR] Wrong request '%s'\n",input); // error 7
 		}
 
 		free(input);
 		
-	}while(keepGoing);
+	}while(keepGoingWithCommands);
 	
 
 	
 	// gengetopt: release resources
 	//cmdline_parser_free(&args);
 
-
 	return 0;
 }
 
 /*
 	Opens the file
-
 	return FILE
 */
 void executeLinesFromFile(char *sFile){
@@ -140,7 +137,7 @@ void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context) {
 	/* Cópia da variável global errno */
 	int aux = errno;
 	
-	keepGoing = false;
+	keepGoingWithCommands = false;
 	switch(signal){
 		case 2: //SIGINT 
 			printf("\n[INFO]\tPID who send the signal: %ld \n\tUID who send the signal: %ld\n", (long)siginfo->si_pid, (long)siginfo->si_uid);
@@ -167,7 +164,7 @@ void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context) {
 
 //https://stackoverflow.com/questions/16870485/how-can-i-read-an-input-string-of-unknown-length
 char *inputString(FILE* fp, size_t size){
-//The size is extended by the input with the value of the provisional
+	//The size is extended by the input with the value of the provisional
     char *str;
     int ch;
     size_t len = 0;
@@ -193,19 +190,15 @@ bool isCommandValid(char* command){
 	return true;
 }
 
-/*
-void runShellCommand(char* command){
-	if(!checkIfCommandIsValid(command)){
-		//ERRO DAR HANDLE NISSO
-	}
 
+void runShellCommand(char* command){
+	(void)command;
 	pid_t pid = fork();
 	if (pid == 0) {			// Processo filho 
 		
-
 		exit(0);
 	} else if (pid > 0) {	// Processo pai 
 		wait(NULL);
 	} else					// < 0 - erro
-		ERROR(2, "Erro na execucao do fork()");
-}*/
+		ERROR(8, "[ERRO] problem with fork()");
+}
