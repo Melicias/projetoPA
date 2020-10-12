@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "debug.h"
 #include "memory.h"
@@ -22,6 +23,13 @@
 
 struct sigaction act_info;
 struct tm tm;
+struct FileCommand { 
+    FILE* fp;
+	char* command;
+}; 
+
+
+extern char **environ;
 
 time_t t;
 int app_ex;
@@ -34,6 +42,10 @@ void executeLinesFromFile(char *sFile);
 void makeSignalFile();
 void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context);
 bool isCommandValid(char* command);
+void runShellCommand(char* command);
+struct FileCommand checkForChannelRedirected(char* command);
+char** removeSpacesAndSplitForArray(char* command);
+char *subString(char *string, int position, int length);
 
 
 int main(int argc, char *argv[]){
@@ -85,9 +97,10 @@ int main(int argc, char *argv[]){
 		input = inputString(stdin, 256);
 		if(isCommandValid(input)){
 			if(strstr(input, "bye") == NULL) {
-				printf("%s\n\n", input);
+				runShellCommand(input);
 			}else{
 				keepGoingWithCommands = false;
+				printf("[INFO] bye command detected. Terminating nanoShell");
 			}
 		}else{
 			printf("[ERROR] Wrong request '%s'\n",input); // error 7
@@ -117,10 +130,22 @@ void executeLinesFromFile(char *sFile){
 	char * line = NULL;
     size_t len = 0;
     ssize_t read;
+	int commandNumber = 0;
 	printf("[INFO] executing from file '%s'",sFile);
 	while ((read = getline(&line, &len, file)) != -1) {
 		if(read != 1 && line[0] != '#'){
-			//fazer os prints com as cenas necessarias para por a shell a funcionar
+			if(isCommandValid(line)){
+				if(strstr(line, "bye") == NULL) {
+					commandNumber += 1;
+					printf("[command #%d]: %s\n",commandNumber, line);
+					runShellCommand(line);
+				}else{
+					printf("[INFO] bye command detected. Terminating nanoShell");
+					return;
+				}
+			}else{
+				printf("[ERROR] Wrong request '%s'\n",line); // error 7
+			}
 		}
     }
 }
@@ -192,13 +217,111 @@ bool isCommandValid(char* command){
 
 
 void runShellCommand(char* command){
-	(void)command;
 	pid_t pid = fork();
 	if (pid == 0) {			// Processo filho 
+		struct FileCommand fc = checkForChannelRedirected(command);
+
+		char ** commandArray;
+		if(fc.fp == NULL){
+			commandArray = removeSpacesAndSplitForArray(command);
+		}else{
+			commandArray = removeSpacesAndSplitForArray(fc.command);
+		}
 		
+		execvp(commandArray[0],commandArray);
+		if(fc.fp != NULL)
+			fclose(fc.fp);
+
 		exit(0);
 	} else if (pid > 0) {	// Processo pai 
 		wait(NULL);
 	} else					// < 0 - erro
 		ERROR(8, "[ERRO] problem with fork()");
+}
+
+struct FileCommand checkForChannelRedirected(char* command){
+	struct FileCommand fc;
+	fc.command = NULL; fc.fp = NULL;
+	char* substring = strstr(command, " > ");
+	if(substring != NULL) {
+		fc.command = subString(command, 1, (substring - command));
+		char* fileName = subString(command, (substring - command)+3, strlen(command));
+		if(fileName != NULL)
+			fc.fp = freopen(fileName, "w", stdout);
+		return fc;
+	}
+	substring = strstr(command, " >> ");
+	if(substring != NULL) {
+		fc.command = subString(command, 1, (substring - command));
+		char* fileName = subString(command, (substring - command)+4, strlen(command));
+		if(fileName != NULL)
+			fc.fp = freopen(fileName, "a", stdout);
+		return fc;
+	}
+	substring = strstr(command, " 2> ");
+	if(substring != NULL) {
+		fc.command = subString(command, 1, (substring - command));
+		char* fileName = subString(command, (substring - command)+4, strlen(command));
+		if(fileName != NULL)
+			fc.fp = freopen(fileName, "w", stderr);
+		return fc;
+	}
+	substring = strstr(command, " 2>> ");
+	if(substring != NULL) {
+		fc.command = subString(command, 1, (substring - command));
+		char* fileName = subString(command, (substring - command)+5, strlen(command));
+		if(fileName != NULL)
+			fc.fp = freopen(fileName, "a", stderr);
+		return fc;
+	}
+	return fc;
+}
+
+char** removeSpacesAndSplitForArray(char* command){
+	char ** ret = NULL;
+	char * p = strtok (command, " ");
+	int n_spaces = 0;
+
+	// split string and append tokens to 'rerturn'
+	while (p) {
+		ret = realloc (ret, sizeof (char*) * ++n_spaces);
+
+		if (ret == NULL)
+			exit (-1); // memory allocation failed - disparar erro
+
+		ret[n_spaces-1] = p;
+
+		p = strtok (NULL, " ");
+	}
+
+	/* realloc one extra element for the last NULL */
+	ret = realloc (ret, sizeof (char*) * (n_spaces+1));
+	ret[n_spaces] = 0;
+
+	/*for (int i = 0; i < sizeof(commandArray); ++i)
+  			printf ("res[%d] = %s\n", i, commandArray[i]);*/
+
+	return ret;
+}
+
+//https://www.programmingsimplified.com/c/source-code/c-substring
+char *subString(char *string, int position, int length){
+   char *p;
+   int c;
+ 
+   p = malloc(length+1);
+   if (p == NULL){
+	   // dar fix neste erro
+      printf("Unable to allocate memory.\n");
+      return NULL;
+   }
+ 
+   for (c = 0; c < length; c++){
+      *(p+c) = *(string+position-1);      
+      string++;  
+   }
+ 
+   *(p+c) = '\0';
+ 
+   return p;
 }
