@@ -274,8 +274,12 @@ struct FileCommand openFile(struct FileCommand fc, char* substring, char* comman
 	char* fileName = subString(command, (substring - command)+removeChar, strlen(command));
 	if(fileName != NULL){
 		printf("[INFO] %s redirected to '%s'\n", type, fileName);
-		fc.fp = freopen(fileName, mode, stream);	
-		stdout_ex += 1;
+		fc.fp = freopen(fileName, mode, stream);
+		if(stream == stdout){
+			stdout_ex += 1;
+		}else{
+			stderr_ex += 1;
+		}
 	}
 	return fc;
 }
