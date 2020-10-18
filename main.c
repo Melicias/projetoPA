@@ -44,6 +44,7 @@ void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context);
 bool isCommandValid(char* command);
 void runShellCommand(char* command);
 struct FileCommand checkForChannelRedirected(char* command);
+struct FileCommand openFile(struct FileCommand fc, char* substring, char* command, int removeChar,char* type, char* mode, FILE *stream);
 char** removeSpacesAndSplitForArray(char* command);
 char *subString(char *string, int position, int length);
 
@@ -96,11 +97,12 @@ int main(int argc, char *argv[]){
 		printf ("nanoshell$: ");
 		input = inputString(stdin, 256);
 		if(isCommandValid(input)){
+			//VERIFICAR SE ISTO ESTA A SER EXECUTADO COMO COMANDO ISoLADO
 			if(strstr(input, "bye") == NULL) {
 				runShellCommand(input);
 			}else{
 				keepGoingWithCommands = false;
-				printf("[INFO] bye command detected. Terminating nanoShell");
+				printf("[INFO] bye command detected. Terminating nanoShell\n\n");
 			}
 		}else{
 			printf("[ERROR] Wrong request '%s'\n",input); // error 7
@@ -141,6 +143,7 @@ void executeLinesFromFile(char *sFile){
 					runShellCommand(line);
 				}else{
 					printf("[INFO] bye command detected. Terminating nanoShell");
+					fclose(file);
 					return;
 				}
 			}else{
@@ -148,6 +151,7 @@ void executeLinesFromFile(char *sFile){
 			}
 		}
     }
+	fclose(file);
 }
 
 void makeSignalFile(){
@@ -227,8 +231,10 @@ void runShellCommand(char* command){
 		}else{
 			commandArray = removeSpacesAndSplitForArray(fc.command);
 		}
-		
+
 		execvp(commandArray[0],commandArray);
+		app_ex += 1;
+
 		if(fc.fp != NULL)
 			fclose(fc.fp);
 
@@ -236,43 +242,40 @@ void runShellCommand(char* command){
 	} else if (pid > 0) {	// Processo pai 
 		wait(NULL);
 	} else					// < 0 - erro
-		ERROR(8, "[ERRO] problem with fork()");
+		ERROR(8, "[ERROR] problem with fork()");
 }
 
 struct FileCommand checkForChannelRedirected(char* command){
+	//uname > /home/user/Desktop/PA/projetoPA/te.txt
+	//uname -y 2>> /home/user/Desktop/PA/projetoPA/e.txt
 	struct FileCommand fc;
 	fc.command = NULL; fc.fp = NULL;
 	char* substring = strstr(command, " > ");
 	if(substring != NULL) {
-		fc.command = subString(command, 1, (substring - command));
-		char* fileName = subString(command, (substring - command)+3, strlen(command));
-		if(fileName != NULL)
-			fc.fp = freopen(fileName, "w", stdout);
-		return fc;
+		return openFile(fc,substring,command,4,"stdout","w", stdout);
 	}
 	substring = strstr(command, " >> ");
 	if(substring != NULL) {
-		fc.command = subString(command, 1, (substring - command));
-		char* fileName = subString(command, (substring - command)+4, strlen(command));
-		if(fileName != NULL)
-			fc.fp = freopen(fileName, "a", stdout);
-		return fc;
+		return openFile(fc,substring,command,5,"stdout","a",stdout);
 	}
 	substring = strstr(command, " 2> ");
 	if(substring != NULL) {
-		fc.command = subString(command, 1, (substring - command));
-		char* fileName = subString(command, (substring - command)+4, strlen(command));
-		if(fileName != NULL)
-			fc.fp = freopen(fileName, "w", stderr);
-		return fc;
+		return openFile(fc,substring,command,5,"stderr","w",stderr);
 	}
 	substring = strstr(command, " 2>> ");
 	if(substring != NULL) {
-		fc.command = subString(command, 1, (substring - command));
-		char* fileName = subString(command, (substring - command)+5, strlen(command));
-		if(fileName != NULL)
-			fc.fp = freopen(fileName, "a", stderr);
-		return fc;
+		return openFile(fc,substring,command,6,"stderr","a",stderr);
+	}
+	return fc;
+}
+
+struct FileCommand openFile(struct FileCommand fc, char* substring, char* command, int removeChar,char* type, char* mode, FILE* stream){
+	fc.command = subString(command, 1, (substring - command));
+	char* fileName = subString(command, (substring - command)+removeChar, strlen(command));
+	if(fileName != NULL){
+		printf("[INFO] %s redirected to '%s'\n", type, fileName);
+		fc.fp = freopen(fileName, mode, stream);	
+		stdout_ex += 1;
 	}
 	return fc;
 }
@@ -297,9 +300,6 @@ char** removeSpacesAndSplitForArray(char* command){
 	/* realloc one extra element for the last NULL */
 	ret = realloc (ret, sizeof (char*) * (n_spaces+1));
 	ret[n_spaces] = 0;
-
-	/*for (int i = 0; i < sizeof(commandArray); ++i)
-  			printf ("res[%d] = %s\n", i, commandArray[i]);*/
 
 	return ret;
 }
