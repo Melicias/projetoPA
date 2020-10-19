@@ -1,3 +1,0 @@
-kill -SIGINT 9992
-kill -SIGUSR1 9992
-kill -SIGUSR2 9992

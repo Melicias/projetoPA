@@ -28,14 +28,14 @@ struct FileCommand {
 	char* command;
 }; 
 
-
 extern char **environ;
 
 time_t t;
-int app_ex;
-int stdout_ex;
-int stderr_ex;
-bool keepGoingWithCommands;
+int app_ex = 0;
+int stdout_ex = 0;
+int stderr_ex = 0;
+bool keepGoingWithCommands = true;
+int maxCommand = -1;
 
 char *inputString(FILE* fp, size_t size);
 void executeLinesFromFile(char *sFile);
@@ -53,34 +53,47 @@ int main(int argc, char *argv[]){
 	
 	t = time(NULL);
 	tm = *localtime(&t);
-	app_ex = 0;
-	stdout_ex = 0;
-	stderr_ex = 0;
-	keepGoingWithCommands = true;
 
 	struct gengetopt_args_info args;
 
 	// gengetopt parser
 	if(cmdline_parser(argc, argv, &args))
-		ERROR(1, "[Error]: cmdline_parser execution.\n");
+		ERROR(1, "[Error] cmdline_parser execution.\n");
 
 	// all the option only must be used alone, so 1 is always from the name of file
 	if(argc > 3)
-		ERROR(2, "[Error]: All the option must to be used on their own.\n");
+		ERROR(2, "[Error] All the option must to be used on their own.\n");
 
+	// if option -f given run all the file and end the program
 	if(args.file_given){
+		//fazer testes de file
 		executeLinesFromFile(args.file_arg);
 		return 0;
 	}
 
+	// if option -s given, make the signal file
 	if(args.signalfile_given){
 		makeSignalFile();
 	}
+
+	// if option -m given, change the value of maxCommand
+	if(args.max_given){
+		if(args.max_arg < 1){
+			ERROR(9, "[ERROR] invalid value ‘%d’ for -m/--max\n",args.max_arg);
+			return 0;
+		}
+		printf("[INFO] terminates after %d commands\n", args.max_arg);
+		maxCommand = args.max_arg;
+	}
+
+	// gengetopt: release resources
+	cmdline_parser_free(&args);
 		
+	// signal stuff
 	act_info.sa_sigaction = takeCareOfSignalInfo;
 	sigemptyset(&act_info.sa_mask);
 	act_info.sa_flags = 0;           	//fidedigno
-	act_info.sa_flags |= SA_SIGINFO; 	//info adicional sobre o sinal
+	act_info.sa_flags |= SA_SIGINFO; 	//adicional info about eh signal
 	//act_info.sa_flags |= SA_RESTART; 	//recupera chamadas bloqueantes
 
 	if(sigaction(SIGINT, &act_info, NULL) < 0)
@@ -91,15 +104,19 @@ int main(int argc, char *argv[]){
 		ERROR(6, "sigaction (SIGUSR2)");
 			
 	
-
+	// reads from shell and keeps in loop until someone type "bye" or 
 	do{
-		char *input;
 		printf ("nanoshell$: ");
-		input = inputString(stdin, 256);
+		//waits for an input
+		char *input = inputString(stdin, 256);
+		//check if the command is valid
 		if(isCommandValid(input)){
-			//VERIFICAR SE ISTO ESTA A SER EXECUTADO COMO COMANDO ISoLADO
-			if(strstr(input, "bye") == NULL) {
+			//strstr(input, "bye") == NULL -> checks in all the line
+			//check if the word "bye" is alone
+			if(strcmp(input, "bye") != 0) {
+				// try to run the command from the shell
 				runShellCommand(input);
+				maxCommand--;
 			}else{
 				keepGoingWithCommands = false;
 				printf("[INFO] bye command detected. Terminating nanoShell\n\n");
@@ -110,34 +127,37 @@ int main(int argc, char *argv[]){
 
 		free(input);
 		
-	}while(keepGoingWithCommands);
-	
+		if(maxCommand == 0){
+			printf("\n[END] Executed %d commands (-m %d)\n", args.max_arg,args.max_arg);
+			keepGoingWithCommands = false;
+		}
 
-	
-	// gengetopt: release resources
-	//cmdline_parser_free(&args);
+	}while(keepGoingWithCommands);
+
+
 
 	return 0;
 }
 
 /*
-	Opens the file
-	return FILE
+	Opens the file and runs all the lines
 */
 void executeLinesFromFile(char *sFile){
 	FILE *file = fopen(sFile, "r");
     if (file == NULL)
-        ERROR(3, "[Error]: cannot open file <%s>. -- %s\n",sFile, strerror(errno));
+        ERROR(3, "[Error] cannot open file <%s>. -- %s\n",sFile, strerror(errno));
 	
 	char * line = NULL;
     size_t len = 0;
     ssize_t read;
 	int commandNumber = 0;
 	printf("[INFO] executing from file '%s'",sFile);
+	// runs all the lines from the file
 	while ((read = getline(&line, &len, file)) != -1) {
 		if(read != 1 && line[0] != '#'){
+			// checks if the command is valid
 			if(isCommandValid(line)){
-				if(strstr(line, "bye") == NULL) {
+				if(strstr(line, "bye") == NULL) { //check if the line contains "bye", if so, end
 					commandNumber += 1;
 					printf("[command #%d]: %s\n",commandNumber, line);
 					runShellCommand(line);
@@ -154,25 +174,37 @@ void executeLinesFromFile(char *sFile){
 	fclose(file);
 }
 
+/*
+	creates the signal file with the signals 
+*/
 void makeSignalFile(){
 	FILE *outputFile = fopen("signal.txt", "wab+");
+	if(outputFile == NULL){
+		printf("[ERROR] creating file 'signal.txt'\n");
+		return;
+	}
 	fprintf(outputFile, "kill -SIGINT %d\nkill -SIGUSR1 %d\nkill -SIGUSR2 %d",getpid(),getpid(),getpid());
 	fclose(outputFile);
-	printf("[INFO] created file  '%s'\n", "signal.txt");
+	printf("[INFO] created file 'signal.txt'\n");
 }
 
+/*
+	when signal is sent, it will take care of it
+*/
 void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context) {
 	(void)context;
-	/* Cópia da variável global errno */
+	// copy of errno
 	int aux = errno;
 	
 	keepGoingWithCommands = false;
 	switch(signal){
 		case 2: //SIGINT 
 			printf("\n[INFO]\tPID who send the signal: %ld \n\tUID who send the signal: %ld\n", (long)siginfo->si_pid, (long)siginfo->si_uid);
+			exit(0);
 			break;
 		case 10: //SIGUSR1 
 			printf("\n[INFO] nanoShell started at: %d-%02d-%02dT%02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+			exit(0);
 			break;
 		case 12: ;//SIGUSR2
 			char fileName[50];
@@ -181,17 +213,23 @@ void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context) {
 			fprintf(outputFile, "%d executions of applications\n%d executions with STDOUT redir \n%d execution with STDERR redir",app_ex,stdout_ex,stderr_ex);
 			fclose(outputFile);
 			printf("\n[INFO] created file  '%s'\n", fileName);
+			exit(0);
 			break;
 		default:
 			printf("\n[INFO] it wasn't redirected to any of the 3 signals");
-
+			exit(0);
 	}
 
-	/* Restaura valor da variável global errno */
+	/* restores the value of errno */
 	errno = aux;
 }
 
-//https://stackoverflow.com/questions/16870485/how-can-i-read-an-input-string-of-unknown-length
+/*
+	gets the input string
+
+	source:
+		https://stackoverflow.com/questions/16870485/how-can-i-read-an-input-string-of-unknown-length
+*/
 char *inputString(FILE* fp, size_t size){
 	//The size is extended by the input with the value of the provisional
     char *str;
@@ -211,7 +249,11 @@ char *inputString(FILE* fp, size_t size){
     return realloc(str, sizeof(char)*len);
 }
 
+/*
+Check if the string is valid (if the string has any of those chars, it returns false)
+Of course we could use strchr(str, '!') != NULL; for example, but its not worth doing it
 
+*/
 bool isCommandValid(char* command){
 	for(int i = 0; i<(int)strlen(command); ++i)
 		if (command[i] == '\'' || command[i] == '"' || command[i] == '|' || command[i] == '*' || command[i] == '?')
@@ -219,12 +261,16 @@ bool isCommandValid(char* command){
 	return true;
 }
 
+/*
 
+*/
 void runShellCommand(char* command){
 	pid_t pid = fork();
-	if (pid == 0) {			// Processo filho 
+	if (pid == 0) {			// son
+		// check if the command needs to redirect
 		struct FileCommand fc = checkForChannelRedirected(command);
 
+		// roganizes the information into an array
 		char ** commandArray;
 		if(fc.fp == NULL){
 			commandArray = removeSpacesAndSplitForArray(command);
@@ -232,6 +278,7 @@ void runShellCommand(char* command){
 			commandArray = removeSpacesAndSplitForArray(fc.command);
 		}
 
+		// executes the command
 		execvp(commandArray[0],commandArray);
 		app_ex += 1;
 
@@ -239,14 +286,15 @@ void runShellCommand(char* command){
 			fclose(fc.fp);
 
 		exit(0);
-	} else if (pid > 0) {	// Processo pai 
-		wait(NULL);
+	} else if (pid > 0) {	// dad
+		wait(NULL); // wait for son
 	} else					// < 0 - erro
 		ERROR(8, "[ERROR] problem with fork()");
 }
 
+//falta fazer a verificacao de "comando > out.txt 2> err.txt"
 struct FileCommand checkForChannelRedirected(char* command){
-	//uname > /home/user/Desktop/PA/projetoPA/te.txt
+	//uname >  /home/user/Desktop/PA/projetoPA/t.txt
 	//uname -y 2>> /home/user/Desktop/PA/projetoPA/e.txt
 	struct FileCommand fc;
 	fc.command = NULL; fc.fp = NULL;
@@ -280,6 +328,11 @@ struct FileCommand openFile(struct FileCommand fc, char* substring, char* comman
 		}else{
 			stderr_ex += 1;
 		}
+
+		if (fc.fp == NULL) {
+			perror("Error opening file: ");
+		}
+
 	}
 	return fc;
 }
