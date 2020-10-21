@@ -2,7 +2,7 @@
 * @file main.c
 * @brief Description
 * @date 2020-10-6
-* @author (grupo 5) Francisco Melicias - 2191727 & Diogo Francisco - 2191253
+* @author Francisco Melicias - 2191727 & Diogo Francisco - 2191253
 */
 
 #include <stdio.h>
@@ -38,13 +38,7 @@ int stderr_ex = 0;
 bool keepGoingWithCommands = true;
 int maxCommand = -1;
 
-struct RedirectStruct { 
-    char* redirect;
-	int size;
-	char* type;
-	char* mode;
-	FILE* stream;
-};
+char *string[] = {" > ", " >> ", " 2> ", "2>>"};
 
 char *inputString(FILE* fp, size_t size);
 void executeLinesFromFile(char *sFile);
@@ -53,7 +47,7 @@ void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context);
 bool isCommandValid(char* command);
 void runShellCommand(char* command);
 struct FileCommand checkForChannelRedirected(char* command);
-struct FileCommand openFile(struct FileCommand fc, char* substring, char* command, int size, struct RedirectStruct redirect[], int position);
+struct FileCommand openFile(struct FileCommand fc, char* substring, char* command, int removeChar,char* type, char* mode, FILE *stream);
 char** removeSpacesAndSplitForArray(char* command);
 char *subString(char *string, int position, int length);
 
@@ -259,8 +253,8 @@ char *inputString(FILE* fp, size_t size){
 }
 
 /*
-	Check if the string is valid (if the string has any of those chars, it returns false)
-	Of course we could use strchr(str, '!') != NULL; for example, but its not worth doing it
+Check if the string is valid (if the string has any of those chars, it returns false)
+Of course we could use strchr(str, '!') != NULL; for example, but its not worth doing it
 
 */
 bool isCommandValid(char* command){
@@ -305,8 +299,8 @@ void runShellCommand(char* command){
 		ERROR(8, "[ERROR] problem with fork()");
 }
 
-//FAZER MAIS TESTES NESTA PARTE
-
+//falta fazer a verificacao de "comando > out.txt 2> err.txt"
+// uname -a 2> err.txt > out.txt 
 /*
 	get the command and check if there is any redirectement
 	if so, it will open the file for it
@@ -315,54 +309,68 @@ void runShellCommand(char* command){
 struct FileCommand checkForChannelRedirected(char* command){
 	//uname > /home/user/Desktop/PA/projetoPA/t.txt
 	//uname -y 2>> /home/user/Desktop/PA/projetoPA/e.txt
-	// uname -a 2>> err.txt >> out.txt 
 	struct FileCommand fc;
-	fc.fpStdout = NULL; fc.fpStderr = NULL; fc.command = NULL;
-
-	struct RedirectStruct redirect[] = {
-		{" > ",4,"stdout","w", stdout},
-		{" >> ",5,"stdout","a",stdout},
-		{" 2> ",5,"stderr","w",stderr},
-		{" 2>> ",6,"stderr","a",stderr}
-	};
-	int size = (int)(sizeof(redirect)/sizeof(struct RedirectStruct));
-	for(int i = 0; i < size;i++){
-		char* substring = strstr(command, redirect[i].redirect);
-		if(substring != NULL) 
-			fc = openFile(fc,substring,command,size,redirect,i);	
+	fc.fpStdout = NULL;
+	fc.fpStderr = NULL;
+	fc.command = NULL;
+	char* substring = strstr(command, " > ");
+	if(substring != NULL) {
+		fc = openFile(fc,substring,command,4,"stdout","w", stdout);	
 	}
-
+	substring = strstr(command, " >> ");
+	if(substring != NULL) {
+		fc = openFile(fc,substring,command,5,"stdout","a",stdout);
+	}
+	substring = strstr(command, " 2> ");
+	if(substring != NULL) {
+		fc = openFile(fc,substring,command,5,"stderr","w",stderr);
+	}
+	substring = strstr(command, " 2>> ");
+	if(substring != NULL) {
+		fc = openFile(fc,substring,command,6,"stderr","a",stderr);
+	}
 	return fc;
 }
 
 /*
 
 */
-struct FileCommand openFile(struct FileCommand fc, char* substring, char* command,int size, struct RedirectStruct redirect[], int position){
+struct FileCommand openFile(struct FileCommand fc, char* substring, char* command, int removeChar,char* type, char* mode, FILE* stream){
 	if(fc.command == NULL){
 		fc.command = subString(command, 1, (substring - command));
-		for(int i = 0; i < size;i++){
-			char* subsubstring = strstr(fc.command, redirect[i].redirect);
-			if(subsubstring != NULL) {
-				*subsubstring = '\0';
-			}
+		char* subsubstring = strstr(fc.command, " > ");
+		if(subsubstring != NULL) {
+			printf("\n\n%s\n\n",fc.command);
+		}
+		subsubstring = strstr(fc.command, " >> ");
+		if(subsubstring != NULL) {
+			printf("\n\n%s\n\n",fc.command);
+		}
+		subsubstring = strstr(fc.command, " 2> ");
+		if(subsubstring != NULL) {
+			*subsubstring = '\0';
+			printf("\n\n%s\n\n",fc.command);
+		}
+		subsubstring = strstr(fc.command, " 2>> ");
+		if(subsubstring != NULL) {
+			printf("\n\n%s\n\n",fc.command);
 		}
 	}
-	char* fileName = subString(command, (substring - command)+redirect[position].size, strlen(command));
+	char* fileName = subString(command, (substring - command)+removeChar, strlen(command));
 	
 	char* removeC = strchr(fileName, ' ');
 	if (removeC != NULL)
 		*removeC = '\0';
 
 	if(fileName != NULL){
-		printf("[INFO] %s redirected to '%s'\n", redirect[position].type, fileName);
-		if(redirect[position].stream == stdout){
-			fc.fpStdout = freopen(fileName, redirect[position].mode, redirect[position].stream);
+		printf("[INFO] %s redirected to '%s'\n", type, fileName);
+		if(stream == stdout){
+			fc.fpStdout = freopen(fileName, mode, stream);
 			stdout_ex += 1;
 			if (fc.fpStdout == NULL) 
 				printf("[ERROR] opening file: '%s'",fileName);
 		}else{
-			fc.fpStderr = freopen(fileName, redirect[position].mode, redirect[position].stream);
+			fc.fpStderr = freopen(fileName, mode, stream);
 			stderr_ex += 1;
 			if (fc.fpStderr == NULL) 
 				printf("[ERROR] opening file: '%s'",fileName);
@@ -371,11 +379,6 @@ struct FileCommand openFile(struct FileCommand fc, char* substring, char* comman
 	return fc;
 }
 
-/*
-	removes the spaces and divides everything and saves it into an array
-
-	example: command = "uname -y -a" array = ["uname","-y","-a"]
-*/
 char** removeSpacesAndSplitForArray(char* command){
 	char ** ret = NULL;
 	char * p = strtok (command, " ");
@@ -399,12 +402,8 @@ char** removeSpacesAndSplitForArray(char* command){
 
 	return ret;
 }
-/*
-	split a char* 
 
-	source:
-		https://www.programmingsimplified.com/c/source-code/c-substring
-*/
+//https://www.programmingsimplified.com/c/source-code/c-substring
 char *subString(char *string, int position, int length){
    char *p;
    int c;
