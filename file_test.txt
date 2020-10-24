@@ -1,0 +1,24 @@
+date +%Y%m%d_%A -d19870527
+# 19870527_Wednesday
+
+file /bin/top 
+# bin/top: ELF 64-bit LSB shared object, x86-64, version 1 (SYSV), dynam...
+
+ls "a.txt"
+# [ERROR] Wrong request 'ls "a.txt"'
+
+cat /proc/cpuinfo > /tmp/out.txt
+# [INFO] stdoutredirected to '/tmp/out.txt'
+
+cat /proc/cpuinfo 2> /tmp/err.txt
+# [INFO] stderrredirected to '/tmp/err.txt'
+# processor       : 0 .....
+
+whoami
+# user
+
+uname -a > uname_a.txt
+# output de uname -a para o ficheiro
+
+gcc -v
+# Using built-in specs. ..........

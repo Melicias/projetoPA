@@ -159,17 +159,19 @@ void executeLinesFromFile(char *sFile){
 	char * line = NULL;
     size_t len = 0;
     ssize_t read;
-	int commandNumber = 0;
-	printf("[INFO] executing from file '%s'",sFile);
+	int commandNumber = 1;
+	printf("[INFO] executing from file '%s'\n",sFile);
 	// runs all the lines from the file
 	while ((read = getline(&line, &len, file)) != -1) {
 		if(read != 1 && line[0] != '#'){
 			// checks if the command is valid
+			printf("[command #%d]: %s\n",commandNumber, line);
+			commandNumber += 1;
 			if(isCommandValid(line)){
 				if(strstr(line, "bye") == NULL) { //check if the line contains "bye", if so, end
-					commandNumber += 1;
-					printf("[command #%d]: %s\n",commandNumber, line);
+					line[strcspn(line, "\r\n")] = 0;
 					runShellCommand(line);
+					printf("\n");
 				}else{
 					printf("[INFO] bye command detected. Terminating nanoShell");
 					fclose(file);
