@@ -1,3 +1,0 @@
-kill -SIGINT 88576
-kill -SIGUSR1 88576
-kill -SIGUSR2 88576

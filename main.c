@@ -29,6 +29,14 @@ struct FileCommand {
 	char* command;
 }; 
 
+struct RedirectStruct { 
+    char* redirect;
+	int size;
+	char* type;
+	char* mode;
+	FILE* stream;
+};
+
 extern char **environ;
 
 time_t t;
@@ -37,14 +45,6 @@ int stdout_ex = 0;
 int stderr_ex = 0;
 bool keepGoingWithCommands = true;
 int maxCommand = -1;
-
-struct RedirectStruct { 
-    char* redirect;
-	int size;
-	char* type;
-	char* mode;
-	FILE* stream;
-};
 
 char *inputString(FILE* fp, size_t size);
 void executeLinesFromFile(char *sFile);
@@ -115,7 +115,8 @@ int main(int argc, char *argv[]){
 	
 	// reads from shell and keeps in loop until someone type "bye" or 
 	do{
-		printf ("nanoshell$: ");
+		// \033[0;31 -> writes in red    \033[0m -> writes in def color
+		printf ("\033[0;31mnanoshell$: \033[0m");
 		//waits for an input
 		char *input = inputString(stdin, 256);
 		//check if the command is valid
@@ -169,6 +170,7 @@ void executeLinesFromFile(char *sFile){
 			commandNumber += 1;
 			if(isCommandValid(line)){
 				if(strstr(line, "bye") == NULL) { //check if the line contains "bye", if so, end
+					//checks for "enters" and replace them
 					line[strcspn(line, "\r\n")] = 0;
 					runShellCommand(line);
 					printf("\n");
@@ -281,7 +283,7 @@ void runShellCommand(char* command){
 		// check if the command needs to redirect
 		struct FileCommand fc = checkForChannelRedirected(command);
 
-		// roganizes the information into an array
+		// reoganizes the information into an array
 		char ** commandArray;
 		if(fc.fpStdout == NULL && fc.fpStderr == NULL){
 			commandArray = removeSpacesAndSplitForArray(command);
@@ -306,8 +308,6 @@ void runShellCommand(char* command){
 	} else					// < 0 - erro
 		ERROR(8, "[ERROR] problem with fork()");
 }
-
-//FAZER MAIS TESTES NESTA PARTE
 
 /*
 	get the command and check if there is any redirectement
@@ -338,9 +338,10 @@ struct FileCommand checkForChannelRedirected(char* command){
 }
 
 /*
-
+	open the files for redirectement
 */
 struct FileCommand openFile(struct FileCommand fc, char* substring, char* command,int size, struct RedirectStruct redirect[], int position){
+	// if there is no command defined, it splits the command and saves it
 	if(fc.command == NULL){
 		fc.command = subString(command, 1, (substring - command));
 		for(int i = 0; i < size;i++){
