@@ -72,6 +72,20 @@ int main(int argc, char *argv[]){
 	// all the option only must be used alone, so 1 is always from the name of file
 	if(argc > 3)
 		ERROR(2, "[Error] All the option must to be used on their own.\n");
+		
+	// signal stuff
+	act_info.sa_sigaction = takeCareOfSignalInfo;
+	sigemptyset(&act_info.sa_mask);
+	act_info.sa_flags = 0;           	//fidedigno
+	act_info.sa_flags |= SA_SIGINFO; 	//adicional info about eh signal
+	//act_info.sa_flags |= SA_RESTART; 	//recupera chamadas bloqueantes
+
+	if(sigaction(SIGINT, &act_info, NULL) < 0)
+		ERROR(4, "sigaction (SIGINT)");
+	if(sigaction(SIGUSR1, &act_info, NULL) < 0)
+		ERROR(5, "sigaction (SIGUSR1)");
+	if(sigaction(SIGUSR2, &act_info, NULL) < 0)
+		ERROR(6, "sigaction (SIGUSR2)");
 
 	// if option -f given run all the file and end the program
 	if(args.file_given){
@@ -94,24 +108,9 @@ int main(int argc, char *argv[]){
 		printf("[INFO] terminates after %d commands\n", args.max_arg);
 		maxCommand = args.max_arg;
 	}
-
+			
 	// gengetopt: release resources
 	cmdline_parser_free(&args);
-		
-	// signal stuff
-	act_info.sa_sigaction = takeCareOfSignalInfo;
-	sigemptyset(&act_info.sa_mask);
-	act_info.sa_flags = 0;           	//fidedigno
-	act_info.sa_flags |= SA_SIGINFO; 	//adicional info about eh signal
-	//act_info.sa_flags |= SA_RESTART; 	//recupera chamadas bloqueantes
-
-	if(sigaction(SIGINT, &act_info, NULL) < 0)
-		ERROR(4, "sigaction (SIGINT)");
-	if(sigaction(SIGUSR1, &act_info, NULL) < 0)
-		ERROR(5, "sigaction (SIGUSR1)");
-	if(sigaction(SIGUSR2, &act_info, NULL) < 0)
-		ERROR(6, "sigaction (SIGUSR2)");
-			
 	
 	// reads from shell and keeps in loop until someone type "bye" or 
 	do{
@@ -317,15 +316,16 @@ void runShellCommand(char* command){
 struct FileCommand checkForChannelRedirected(char* command){
 	//uname > /home/user/Desktop/PA/projetoPA/t.txt
 	//uname -y 2>> /home/user/Desktop/PA/projetoPA/e.txt
-	// uname -a 2>> err.txt >> out.txt 
+	// uname -a 2> err.txt > out.txt 
 	struct FileCommand fc;
 	fc.fpStdout = NULL; fc.fpStderr = NULL; fc.command = NULL;
 
 	struct RedirectStruct redirect[] = {
-		{" > ",4,"stdout","w", stdout},
-		{" >> ",5,"stdout","a",stdout},
 		{" 2> ",5,"stderr","w",stderr},
-		{" 2>> ",6,"stderr","a",stderr}
+		{" 2>> ",6,"stderr","a",stderr},
+		{" > ",4,"stdout","w", stdout},
+		{" >> ",5,"stdout","a",stdout}
+		
 	};
 	int size = (int)(sizeof(redirect)/sizeof(struct RedirectStruct));
 	for(int i = 0; i < size;i++){
