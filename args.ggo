@@ -1,7 +1,7 @@
 package "nanoShell"
 version "1.0"
-purpose "Simple example (optional)"
-description "description needed (optional)"
+purpose "To run shell commands"
+description "Executes all shell commands, pipes and * not valid, without that, it can run all shell commands"
 versiontext "Made by: \n  Francisco Melicias - 2191727 \n  Diogo Francisco - 219----"
 
 option  "file"          f   "Executes all the line in the file except the ones that start with '#'." typestr="Directory"    string  optional

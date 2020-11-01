@@ -25,13 +25,13 @@
 
 #include "args.h"
 
-const char *gengetopt_args_info_purpose = "Simple example (optional)";
+const char *gengetopt_args_info_purpose = "To run shell commands";
 
 const char *gengetopt_args_info_usage = "Usage: nanoShell [OPTION]...";
 
 const char *gengetopt_args_info_versiontext = "Made by: \n  Francisco Melicias - 2191727 \n  Diogo Francisco - 219----";
 
-const char *gengetopt_args_info_description = "description needed (optional)";
+const char *gengetopt_args_info_description = "Executes all shell commands, pipes and * not valid, without that, it can run\nall shell commands";
 
 const char *gengetopt_args_info_help[] = {
   "  -h, --help            Print help and exit",

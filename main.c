@@ -23,11 +23,6 @@
 
 struct sigaction act_info;
 struct tm tm;
-struct FileCommand { 
-    FILE* fpStdout;
-	FILE* fpStderr;
-	char* command;
-}; 
 
 struct RedirectStruct { 
     char* redirect;
@@ -36,6 +31,14 @@ struct RedirectStruct {
 	char* mode;
 	FILE* stream;
 };
+
+struct FileCommand { 
+	struct RedirectStruct rsStdout;
+	char* fileNameStdout;
+	struct RedirectStruct rsStderr;
+	char* fileNameStderr; 
+	char* command;
+}; 
 
 extern char **environ;
 
@@ -53,7 +56,7 @@ void takeCareOfSignalInfo(int signal, siginfo_t *siginfo, void *context);
 bool isCommandValid(char* command);
 void runShellCommand(char* command);
 struct FileCommand checkForChannelRedirected(char* command);
-struct FileCommand openFile(struct FileCommand fc, char* substring, char* command, int size, struct RedirectStruct redirect[], int position);
+struct FileCommand prepareToOpenFile(struct FileCommand fc, char* substring, char* command, int size, struct RedirectStruct redirect[], int position);
 char** removeSpacesAndSplitForArray(char* command);
 char *subString(char *string, int position, int length);
 
@@ -277,33 +280,47 @@ bool isCommandValid(char* command){
 	runs the command in the shell with execvp
 */
 void runShellCommand(char* command){
+	// check if the command needs to redirect
+	struct FileCommand fc = checkForChannelRedirected(command);
+
+	// reoganizes the information into an array
+	char ** commandArray;
+	if(fc.fileNameStdout == NULL && fc.fileNameStderr == NULL){
+		commandArray = removeSpacesAndSplitForArray(command);
+	}else{
+		commandArray = removeSpacesAndSplitForArray(fc.command);
+	}
+
 	pid_t pid = fork();
 	if (pid == 0) {			// son
-		// check if the command needs to redirect
-		struct FileCommand fc = checkForChannelRedirected(command);
-
-		// reoganizes the information into an array
-		char ** commandArray;
-		if(fc.fpStdout == NULL && fc.fpStderr == NULL){
-			commandArray = removeSpacesAndSplitForArray(command);
-		}else{
-			commandArray = removeSpacesAndSplitForArray(fc.command);
+		//open stdout e stderr in case they exist
+		FILE* fpStdout;
+		FILE* fpStderr;
+		if(fc.fileNameStdout != NULL){
+			fpStdout = freopen(fc.fileNameStdout, fc.rsStdout.mode, fc.rsStdout.stream);
+			if (fpStdout == NULL) 
+				printf("[ERROR] opening file: '%s'",fc.fileNameStdout);
+		}
+		if(fc.fileNameStderr != NULL){
+			fpStderr = freopen(fc.fileNameStderr, fc.rsStderr.mode, fc.rsStderr.stream);
+			if (fpStderr == NULL) 
+				printf("[ERROR] opening file: '%s'",fc.fileNameStderr);
 		}
 
 		// executes the command
 		execvp(commandArray[0],commandArray);
-		app_ex += 1;
 
-		if(fc.fpStdout != NULL){
-			fclose(fc.fpStdout);
+		if(fpStdout != NULL){
+			fclose(fpStdout);
 		}
-		if(fc.fpStderr != NULL){
-			fclose(fc.fpStderr);
+		if(fpStderr != NULL){
+			fclose(fpStderr);
 		}
 
 		exit(0);
 	} else if (pid > 0) {	// dad
 		wait(NULL); // wait for son
+		app_ex += 1;
 	} else					// < 0 - erro
 		ERROR(8, "[ERROR] problem with fork()");
 }
@@ -314,11 +331,8 @@ void runShellCommand(char* command){
 */
 
 struct FileCommand checkForChannelRedirected(char* command){
-	//uname > /home/user/Desktop/PA/projetoPA/t.txt
-	//uname -y 2>> /home/user/Desktop/PA/projetoPA/e.txt
-	// uname -a 2> err.txt > out.txt 
 	struct FileCommand fc;
-	fc.fpStdout = NULL; fc.fpStderr = NULL; fc.command = NULL;
+	fc.fileNameStdout = NULL; fc.fileNameStderr = NULL; fc.command = NULL;
 
 	struct RedirectStruct redirect[] = {
 		{" 2> ",5,"stderr","w",stderr},
@@ -331,16 +345,16 @@ struct FileCommand checkForChannelRedirected(char* command){
 	for(int i = 0; i < size;i++){
 		char* substring = strstr(command, redirect[i].redirect);
 		if(substring != NULL) 
-			fc = openFile(fc,substring,command,size,redirect,i);	
+			fc = prepareToOpenFile(fc,substring,command,size,redirect,i);	
 	}
 
 	return fc;
 }
 
 /*
-	open the files for redirectement
+	prepares everything to open the files for redirectement in the "son" process
 */
-struct FileCommand openFile(struct FileCommand fc, char* substring, char* command,int size, struct RedirectStruct redirect[], int position){
+struct FileCommand prepareToOpenFile(struct FileCommand fc, char* substring, char* command,int size, struct RedirectStruct redirect[], int position){
 	// if there is no command defined, it splits the command and saves it
 	if(fc.command == NULL){
 		fc.command = subString(command, 1, (substring - command));
@@ -357,18 +371,17 @@ struct FileCommand openFile(struct FileCommand fc, char* substring, char* comman
 	if (removeC != NULL)
 		*removeC = '\0';
 
+	// save in fc all the things so it can open the file in the "son" process
 	if(fileName != NULL){
 		printf("[INFO] %s redirected to '%s'\n", redirect[position].type, fileName);
 		if(redirect[position].stream == stdout){
-			fc.fpStdout = freopen(fileName, redirect[position].mode, redirect[position].stream);
+			fc.rsStdout = redirect[position];
+			fc.fileNameStdout = fileName;
 			stdout_ex += 1;
-			if (fc.fpStdout == NULL) 
-				printf("[ERROR] opening file: '%s'",fileName);
 		}else{
-			fc.fpStderr = freopen(fileName, redirect[position].mode, redirect[position].stream);
+			fc.rsStderr = redirect[position];
+			fc.fileNameStderr = fileName;
 			stderr_ex += 1;
-			if (fc.fpStderr == NULL) 
-				printf("[ERROR] opening file: '%s'",fileName);
 		}
 	}
 	return fc;

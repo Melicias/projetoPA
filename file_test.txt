@@ -22,3 +22,9 @@ uname -a > uname_a.txt
 
 gcc -v
 # Using built-in specs. ..........
+
+uname > /home/user/Desktop/PA/projetoPA/t.txt
+
+uname -y 2>> /home/user/Desktop/PA/projetoPA/e.txt
+
+uname -a 2> err.txt > out.txt 
