@@ -309,7 +309,8 @@ void runShellCommand(char* command){
 
 		// executes the command
 		execvp(commandArray[0],commandArray);
-
+		printf("[INFO] '%s' command not found\n", commandArray[0]);
+		
 		if(fpStdout != NULL){
 			fclose(fpStdout);
 		}
