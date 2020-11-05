@@ -3,6 +3,7 @@
 * @brief Description
 * @date 2020-10-6
 * @author (grupo 5) Francisco Melicias - 2191727 & Diogo Francisco - 2191253
+» @version https://github.com/Melicias/projetoPA <- version control
 */
 
 #include <stdio.h>
@@ -72,8 +73,8 @@ int main(int argc, char *argv[]){
 	if(cmdline_parser(argc, argv, &args))
 		ERROR(1, "[Error] cmdline_parser execution.\n");
 
-	// all the option only must be used alone, so 1 is always from the name of file
-	if(argc > 3)
+	// all the option only must be used alone, so it checks if there is more than 1 at a time
+	if((args.signalfile_given && args.file_given) || (args.signalfile_given && args.max_given) || (args.file_given && args.max_given))
 		ERROR(2, "[Error] All the option must to be used on their own.\n");
 		
 	// signal stuff
