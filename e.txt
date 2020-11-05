@@ -1,2 +1,0 @@
-uname: opção inválida -- 'y'
-Try 'uname --help' for more information.
